@@ -46,6 +46,7 @@ def public_magazine(row) -> dict:
         "id": row["id"],
         "collection": row["collection"],
         "filename": row["filename"],
+        "dirpath": row["dirpath"],
         "title": row["title"],
         "groupID": row["groupID"],
         "userID": row["userID"],
@@ -97,8 +98,14 @@ def list_collections(user: dict = Depends(auth.get_current_user)):
     return result
 
 
-@app.get("/api/collections/{name}/magazines")
-def list_collection_magazines(name: str, user: dict = Depends(auth.get_current_user)):
+@app.get("/api/collections/{name}/browse")
+def browse_collection(name: str, path: str = "", user: dict = Depends(auth.get_current_user)):
+    """List the folders and magazines directly inside `path` within a collection.
+
+    `path` is a `/`-separated subdirectory path relative to the collection root
+    (empty string for the collection's top level), mirroring the on-disk layout
+    under collections/<name>/.
+    """
     conn = db.get_conn()
     collection = conn.execute("SELECT * FROM collections WHERE name = ?", (name,)).fetchone()
     if collection is None:
@@ -106,10 +113,35 @@ def list_collection_magazines(name: str, user: dict = Depends(auth.get_current_u
     if not auth.can_access(user, collection["groupID"], None):
         raise HTTPException(status_code=403, detail="No access to this collection")
 
+    path = path.strip("/")
+    prefix = f"{path}/" if path else ""
+
     rows = conn.execute(
         "SELECT * FROM magazines WHERE collection = ? ORDER BY title", (name,)
     ).fetchall()
-    return [public_magazine(r) for r in rows if auth.can_access(user, r["groupID"], r["userID"])]
+
+    magazines = []
+    folder_counts: dict[str, int] = {}
+    for row in rows:
+        if not auth.can_access(user, row["groupID"], row["userID"]):
+            continue
+        dirpath = row["dirpath"] or ""
+        if dirpath == path:
+            magazines.append(row)
+        elif dirpath.startswith(prefix):
+            folder_name = dirpath[len(prefix):].split("/", 1)[0]
+            folder_counts[folder_name] = folder_counts.get(folder_name, 0) + 1
+
+    folders = [
+        {"name": folder_name, "path": f"{prefix}{folder_name}", "magazineCount": count}
+        for folder_name, count in sorted(folder_counts.items())
+    ]
+
+    return {
+        "path": path,
+        "folders": folders,
+        "magazines": [public_magazine(r) for r in magazines],
+    }
 
 
 def _get_magazine_or_404(magazine_id: int):

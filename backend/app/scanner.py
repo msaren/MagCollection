@@ -42,6 +42,9 @@ def scan() -> dict:
                 seen_relpaths.add(relpath)
                 stat = entry.stat()
                 title = entry.stem
+                dirpath = str(entry.parent.relative_to(collection_dir))
+                if dirpath == ".":
+                    dirpath = ""
 
                 existing = conn.execute(
                     "SELECT id FROM magazines WHERE relpath = ?", (relpath,)
@@ -50,12 +53,13 @@ def scan() -> dict:
                 if existing is None:
                     conn.execute(
                         "INSERT INTO magazines "
-                        "(collection, filename, relpath, title, groupID, size, mtime) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        "(collection, filename, relpath, dirpath, title, groupID, size, mtime) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             collection_name,
                             entry.name,
                             relpath,
+                            dirpath,
                             title,
                             config.PUBLIC_GROUP_ID,
                             stat.st_size,
@@ -65,8 +69,8 @@ def scan() -> dict:
                     added += 1
                 else:
                     conn.execute(
-                        "UPDATE magazines SET size = ?, mtime = ? WHERE relpath = ?",
-                        (stat.st_size, stat.st_mtime, relpath),
+                        "UPDATE magazines SET size = ?, mtime = ?, dirpath = ? WHERE relpath = ?",
+                        (stat.st_size, stat.st_mtime, dirpath, relpath),
                     )
                     updated += 1
 

@@ -18,7 +18,7 @@ export default function App() {
 
           <Route element={<RequireAuth />}>
             <Route path="/" element={<Collections />} />
-            <Route path="/collections/:name" element={<CollectionView />} />
+            <Route path="/collections/:name/*" element={<CollectionView />} />
             <Route path="/settings/ui" element={<UISettings />} />
 
             <Route element={<RequireAdmin />}>

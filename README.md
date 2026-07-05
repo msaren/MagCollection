@@ -5,13 +5,13 @@ MagCollector is a web app for browsing a magazine collection. Magazines live as 
 
 ## Running locally
 
-### Backend (FastAPI + SQLite, port 8000)
+### Backend (FastAPI + SQLite, port 8001)
 
 ```sh
 cd backend
 python3 -m venv venv          # first time only
 ./venv/bin/pip install -r requirements.txt   # first time only
-./venv/bin/uvicorn app.main:app --port 8000
+./venv/bin/uvicorn app.main:app --port 8001
 ```
 
 On first run this creates `backend/users.json` with a seed admin account (`admin` / `admin123` —
@@ -25,7 +25,7 @@ npm install      # first time only
 npm run dev
 ```
 
-Vite proxies `/api` to `http://127.0.0.1:8000`, so the two servers must run side by side. Open
+Vite proxies `/api` to `http://127.0.0.1:8001`, so the two servers must run side by side. Open
 http://localhost:5173.
 
 ## Access model

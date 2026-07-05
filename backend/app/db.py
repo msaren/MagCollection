@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS magazines (
     collection TEXT NOT NULL,
     filename TEXT NOT NULL,
     relpath TEXT NOT NULL UNIQUE,
+    dirpath TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     userID TEXT,
     groupID TEXT NOT NULL DEFAULT 'public',
@@ -28,6 +29,10 @@ CREATE TABLE IF NOT EXISTS magazines (
 );
 
 CREATE INDEX IF NOT EXISTS idx_magazines_collection ON magazines(collection);
+"""
+
+INDEX_SCHEMA = """
+CREATE INDEX IF NOT EXISTS idx_magazines_dirpath ON magazines(collection, dirpath);
 """
 
 
@@ -44,6 +49,10 @@ def get_conn() -> sqlite3.Connection:
 def init_db() -> None:
     conn = get_conn()
     conn.executescript(SCHEMA)
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(magazines)")}
+    if "dirpath" not in columns:
+        conn.execute("ALTER TABLE magazines ADD COLUMN dirpath TEXT NOT NULL DEFAULT ''")
+    conn.executescript(INDEX_SCHEMA)
     conn.commit()
 
 

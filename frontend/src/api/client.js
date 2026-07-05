@@ -45,7 +45,10 @@ export const api = {
   updateTheme: (theme) => request('/me/theme', { method: 'PUT', body: { theme } }),
 
   collections: () => request('/collections'),
-  collectionMagazines: (name) => request(`/collections/${encodeURIComponent(name)}/magazines`),
+  collectionBrowse: (name, path = '') =>
+    request(
+      `/collections/${encodeURIComponent(name)}/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`
+    ),
 
   async fetchBlob(path) {
     const token = getToken()

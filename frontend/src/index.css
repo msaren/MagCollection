@@ -358,6 +358,32 @@ button {
   color: var(--color-primary);
 }
 
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-lg);
+  font-size: 14px;
+}
+
+.breadcrumb-link {
+  color: var(--color-muted);
+}
+
+.breadcrumb-link:hover {
+  color: var(--color-primary);
+}
+
+.breadcrumb-current {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.breadcrumb-sep {
+  color: var(--color-muted-soft);
+}
+
 /* ---------------------------------------------------------------------- */
 /* Grids: collections & magazines                                         */
 /* ---------------------------------------------------------------------- */
@@ -373,6 +399,44 @@ button {
 
 .grid-magazines {
   grid-template-columns: repeat(6, 1fr);
+}
+
+.grid-folders {
+  grid-template-columns: repeat(6, 1fr);
+  margin-bottom: var(--space-lg);
+}
+
+.folder-card {
+  background: var(--color-surface-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xxs);
+  text-decoration: none;
+  transition: background 0.05s ease;
+}
+
+.folder-card:hover {
+  background: var(--color-surface-cream-strong);
+}
+
+.folder-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.folder-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--color-ink);
+  overflow-wrap: break-word;
+}
+
+.folder-count {
+  font-size: 12px;
+  color: var(--color-muted);
 }
 
 .collection-card {
@@ -602,7 +666,8 @@ button {
   .grid-collections {
     grid-template-columns: repeat(2, 1fr);
   }
-  .grid-magazines {
+  .grid-magazines,
+  .grid-folders {
     grid-template-columns: repeat(3, 1fr);
   }
 }
@@ -611,7 +676,8 @@ button {
   .grid-collections {
     grid-template-columns: 1fr;
   }
-  .grid-magazines {
+  .grid-magazines,
+  .grid-folders {
     grid-template-columns: repeat(2, 1fr);
   }
 
