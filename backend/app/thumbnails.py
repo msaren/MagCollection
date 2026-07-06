@@ -21,6 +21,9 @@ def ensure_thumbnail(relpath: str) -> Path:
     source_path = config.COLLECTIONS_DIR / relpath
     doc = fitz.open(source_path)
     try:
+        if doc.is_reflowable:
+            # EPUB and similar formats have no fixed page size until laid out.
+            doc.layout(width=800, height=1200, fontsize=11)
         page = doc.load_page(0)
         matrix = fitz.Matrix(THUMBNAIL_ZOOM, THUMBNAIL_ZOOM)
         pix = page.get_pixmap(matrix=matrix)

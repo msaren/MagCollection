@@ -716,3 +716,91 @@ button {
     padding: var(--space-lg);
   }
 }
+
+/* ------------------------------------------------------------------------ */
+/* EPUB reader                                                               */
+/* ------------------------------------------------------------------------ */
+
+.reader-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-dark);
+  z-index: 100;
+}
+
+.reader-topbar {
+  height: var(--topbar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 0 var(--space-lg);
+  background: var(--color-surface-dark-elevated);
+  border-bottom: 1px solid var(--color-hairline);
+  color: var(--color-on-dark);
+}
+
+.reader-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-progress {
+  color: var(--color-on-dark-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.reader-viewer {
+  position: absolute;
+  inset: 0;
+  background: var(--color-canvas);
+}
+
+.reader-error {
+  position: absolute;
+  top: var(--space-lg);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.reader-nav {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 15%;
+  min-width: 48px;
+  border: none;
+  background: transparent;
+  color: var(--color-on-dark-soft);
+  font-size: 32px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.reader-nav:hover {
+  opacity: 1;
+  background: rgba(20, 20, 19, 0.06);
+}
+
+.reader-nav-prev {
+  left: 0;
+}
+
+.reader-nav-next {
+  right: 0;
+}

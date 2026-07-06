@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import AuthImage from '../components/AuthImage'
 import { api } from '../api/client'
@@ -14,6 +14,7 @@ function encodePath(path) {
 
 export default function CollectionView() {
   const { name, '*': splat } = useParams()
+  const navigate = useNavigate()
   const path = (splat || '').replace(/\/$/, '')
   const segments = path ? path.split('/') : []
 
@@ -30,10 +31,14 @@ export default function CollectionView() {
       .catch((e) => setError(e.message))
   }, [name, path])
 
-  async function handleOpen(magazineId) {
-    setOpeningId(magazineId)
+  async function handleOpen(magazine) {
+    if (magazine.filetype === 'epub') {
+      navigate(`/reader/${magazine.id}`, { state: { title: magazine.title } })
+      return
+    }
+    setOpeningId(magazine.id)
     try {
-      await openMagazineFile(magazineId)
+      await openMagazineFile(magazine.id)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -105,7 +110,7 @@ export default function CollectionView() {
             <button
               key={m.id}
               className="magazine-card"
-              onClick={() => handleOpen(m.id)}
+              onClick={() => handleOpen(m)}
               disabled={openingId === m.id}
             >
               <AuthImage path={`/magazines/${m.id}/thumbnail`} alt={m.title} className="magazine-thumb" />

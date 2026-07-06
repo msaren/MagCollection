@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -41,6 +43,12 @@ def public_user(user: dict) -> dict:
     }
 
 
+MEDIA_TYPES = {
+    ".pdf": "application/pdf",
+    ".epub": "application/epub+zip",
+}
+
+
 def public_magazine(row) -> dict:
     return {
         "id": row["id"],
@@ -52,6 +60,7 @@ def public_magazine(row) -> dict:
         "userID": row["userID"],
         "size": row["size"],
         "mtime": row["mtime"],
+        "filetype": Path(row["filename"]).suffix.lower().lstrip("."),
     }
 
 
@@ -160,7 +169,8 @@ def get_magazine_file(magazine_id: int, user: dict = Depends(auth.get_current_us
     file_path = config.COLLECTIONS_DIR / row["relpath"]
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File missing on disk")
-    return FileResponse(file_path, media_type="application/pdf", filename=row["filename"])
+    media_type = MEDIA_TYPES.get(file_path.suffix.lower(), "application/octet-stream")
+    return FileResponse(file_path, media_type=media_type, filename=row["filename"])
 
 
 @app.get("/api/magazines/{magazine_id}/thumbnail")
