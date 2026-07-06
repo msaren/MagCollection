@@ -16,6 +16,8 @@ class ApiError extends Error {
   }
 }
 
+// Shared JSON request helper. Binary responses (file/thumbnail/page downloads) go
+// through fetchBlob below instead, since they don't fit the parse-as-JSON assumption here.
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const token = getToken()
   const res = await fetch(`/api${path}`, {
@@ -34,6 +36,8 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const data = isJson ? await res.json() : null
 
   if (!res.ok) {
+    // FastAPI's HTTPException bodies are {"detail": "..."}; fall back to a generic
+    // message for errors that never reach our handlers (e.g. a proxy 502).
     throw new ApiError(data?.detail || `Request failed (${res.status})`, res.status)
   }
   return data
@@ -52,6 +56,8 @@ export const api = {
 
   comicPages: (magazineId) => request(`/magazines/${magazineId}/pages`),
 
+  // Used for magazine files, thumbnails, and comic pages: these need the auth header
+  // (so they can't just be plain <img src="/api/...">) but return binary bodies, not JSON.
   async fetchBlob(path) {
     const token = getToken()
     const res = await fetch(`/api${path}`, {

@@ -1,3 +1,5 @@
+# Request bodies for the FastAPI endpoints in main.py. Update-style models use
+# Optional fields defaulting to None so callers can send only the fields they're changing.
 from typing import Literal, Optional
 
 from pydantic import BaseModel

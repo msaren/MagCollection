@@ -1,6 +1,9 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 
+// Layout routes: rendered via <Route element={<RequireAuth />}> wrapping child
+// routes, so <Outlet /> renders whichever child route matched.
+
 export function RequireAuth() {
   const { user, loading } = useAuth()
   if (loading) return <div className="page-loading">Loading…</div>

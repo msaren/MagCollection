@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 
+// Full-screen page-by-page viewer for comic archives (CBZ/CBR/ZIP). Unlike the EPUB
+// reader, there's no client-side library doing the parsing: the backend extracts one
+// image per request, so this just fetches pages one at a time as the user navigates.
 export default function ComicReader() {
   const { magazineId } = useParams()
   const navigate = useNavigate()
@@ -13,6 +16,9 @@ export default function ComicReader() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // Fetching the page count is also what stamps last_read server-side (see
+  // main.py get_magazine_pages) - it only needs to happen once per magazine, not
+  // once per page turn, which is why it's split out from the page-image effect below.
   useEffect(() => {
     let cancelled = false
     api
@@ -29,6 +35,9 @@ export default function ComicReader() {
     }
   }, [magazineId])
 
+  // Re-fetches the current page's image whenever pageIndex changes (or pageCount
+  // arrives). Each page is its own request/object URL - no client-side caching of
+  // pages the user has already seen.
   useEffect(() => {
     if (pageCount === 0) return
     let cancelled = false

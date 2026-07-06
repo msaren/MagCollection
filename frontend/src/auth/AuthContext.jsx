@@ -7,6 +7,9 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // Resolves a stored token into a user on load/refresh. Any failure (expired,
+  // tampered, or the account was deleted server-side) just drops back to logged-out
+  // rather than surfacing an error, since there's no session to recover here.
   const loadUser = useCallback(async () => {
     if (!getToken()) {
       setUser(null)
@@ -46,6 +49,8 @@ export function AuthProvider({ children }) {
     return updated
   }, [])
 
+  // The theme is stored per-user server-side; mirror it onto the root element so
+  // index.css's [data-theme='dark'] overrides can apply without prop-drilling.
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', user?.theme || 'light')
   }, [user?.theme])

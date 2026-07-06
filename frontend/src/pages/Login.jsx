@@ -12,6 +12,9 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
 
   if (user) {
+    // location.state.from would let RequireAuth send users back to the page they
+    // tried to visit, but it doesn't currently set that state, so this always falls
+    // through to '/' - kept in case that gets wired up later.
     const redirectTo = location.state?.from || '/'
     return <Navigate to={redirectTo} replace />
   }

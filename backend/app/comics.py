@@ -1,3 +1,13 @@
+"""Read pages out of comic archives (.cbz/.zip and .cbr).
+
+CBZ/ZIP are plain zip files, handled with the stdlib zipfile module. CBR is RAR,
+which needs a proprietary decompressor that no pure-Python library provides
+reliably (the `rarfile` package was tried and found to mis-extract entries
+against its own bsdtar backend) - so .cbr shells out to whichever external
+archive tool is available: `unrar` if installed, else `bsdtar` (libarchive,
+preinstalled on macOS and widely available on Linux).
+"""
+
 import re
 import shutil
 import subprocess
@@ -17,10 +27,13 @@ IMAGE_MEDIA_TYPES = {
     ".bmp": "image/bmp",
 }
 
+# Resolved once at import time. shutil.which() correctly returns None for a broken
+# symlink (e.g. a stale `unrar` cask install), so this won't pick a dead binary.
 RAR_TOOL = shutil.which("unrar") or shutil.which("bsdtar")
 
 
 def _natural_key(name: str) -> list:
+    """Sort key so 'page_2.jpg' < 'page_10.jpg' instead of ordering by character code."""
     return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", name)]
 
 
@@ -29,6 +42,7 @@ def _is_image(name: str) -> bool:
 
 
 def _list_rar_pages(path: Path) -> list[str]:
+    """List entry names via unrar's "list bare" mode, or bsdtar's -t (list) as a fallback."""
     if RAR_TOOL is None:
         raise RuntimeError("No archive tool (unrar or bsdtar) found on PATH for CBR support")
     if RAR_TOOL.endswith("unrar"):
@@ -44,6 +58,7 @@ def _list_rar_pages(path: Path) -> list[str]:
 
 
 def _read_rar_page(path: Path, name: str) -> bytes:
+    """Extract a single entry straight to stdout instead of unpacking the whole archive to disk."""
     if RAR_TOOL is None:
         raise RuntimeError("No archive tool (unrar or bsdtar) found on PATH for CBR support")
     if RAR_TOOL.endswith("unrar"):

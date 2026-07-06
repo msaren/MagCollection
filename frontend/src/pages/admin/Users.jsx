@@ -42,6 +42,8 @@ export default function AdminUsers() {
   async function handleSaveEdit(id) {
     setError('')
     try {
+      // Leave password out of the payload entirely when the field was left blank,
+      // so the backend's partial-update semantics keep the existing password.
       const payload = { ...editForm }
       if (!payload.password) delete payload.password
       await api.adminUpdateUser(id, payload)
@@ -81,6 +83,8 @@ export default function AdminUsers() {
               </tr>
             </thead>
             <tbody>
+              {/* Rows toggle between a read-only view and an inline edit form for the one
+                  row being edited, rather than routing to a separate edit page. */}
               {users?.map((u) => (
                 <tr key={u.id}>
                   {editingId === u.id ? (
@@ -144,6 +148,8 @@ export default function AdminUsers() {
                         <button className="button-text-link" onClick={() => startEdit(u)}>
                           Edit
                         </button>
+                        {/* Mirrors the backend's own guard against self-deletion, which
+                            would otherwise lock the signed-in admin out. */}
                         <button
                           className="button-text-link button-danger"
                           onClick={() => handleDelete(u.id)}

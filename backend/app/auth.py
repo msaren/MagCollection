@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import config, users_store
 
-bearer_scheme = HTTPBearer(auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)  # auto_error=False: raise our own 401 below, with a body
 
 
 def create_token(user: dict) -> str:
@@ -48,6 +48,8 @@ def require_admin(user: dict = Depends(get_current_user)) -> dict:
 
 
 def can_access(user: dict, item_group_id: str, item_user_id: str | None) -> bool:
+    """Central access rule: admins see everything; otherwise an explicit per-item
+    owner override wins, falling back to a plain groupID match."""
     if user["role"] == "admin":
         return True
     if item_user_id and item_user_id == user["id"]:

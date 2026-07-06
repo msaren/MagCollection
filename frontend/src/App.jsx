@@ -20,11 +20,14 @@ export default function App() {
 
           <Route element={<RequireAuth />}>
             <Route path="/" element={<Collections />} />
+            {/* :name/* captures the rest of the path as one splat param so CollectionView
+                can handle arbitrarily nested subdirectories itself. */}
             <Route path="/collections/:name/*" element={<CollectionView />} />
             <Route path="/reader/:magazineId" element={<EpubReader />} />
             <Route path="/comic/:magazineId" element={<ComicReader />} />
             <Route path="/settings/ui" element={<UISettings />} />
 
+            {/* Nested under RequireAuth so these also get the outer login redirect. */}
             <Route element={<RequireAdmin />}>
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/scanner" element={<AdminScanner />} />

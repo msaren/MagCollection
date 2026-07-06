@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 from . import config
 
-_local = threading.local()
+_local = threading.local()  # one sqlite3 connection per thread; FastAPI's thread pool needs this
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS collections (
@@ -48,6 +48,12 @@ def get_conn() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """Create the schema if missing, then apply column additions for existing DBs.
+
+    CREATE TABLE IF NOT EXISTS won't add columns to a table that already exists, so
+    each new column added after the initial release needs its own ALTER TABLE guard
+    here rather than just being added to SCHEMA above.
+    """
     conn = get_conn()
     conn.executescript(SCHEMA)
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(magazines)")}
@@ -61,6 +67,7 @@ def init_db() -> None:
 
 @contextmanager
 def tx():
+    """Wrap a block of writes in a commit/rollback pair around the thread-local connection."""
     conn = get_conn()
     try:
         yield conn

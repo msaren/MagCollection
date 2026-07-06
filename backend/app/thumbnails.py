@@ -12,6 +12,8 @@ COMIC_THUMB_SIZE = (480, 720)
 
 
 def thumbnail_path_for(relpath: str) -> Path:
+    # Flatten the relpath into a single filename (rather than mirroring subdirectories
+    # under THUMBNAIL_DIR) so the cache doesn't need its own mkdir-parents dance per magazine.
     safe_name = relpath.replace("/", "__").replace("\\", "__")
     return config.THUMBNAIL_DIR / f"{safe_name}.png"
 
@@ -46,9 +48,10 @@ def _render_document_thumbnail(source_path: Path, out_path: Path) -> None:
 
 
 def _render_comic_thumbnail(relpath: str, out_path: Path) -> None:
-    data, _media_type = comics.read_page(relpath, 0)
+    data, _media_type = comics.read_page(relpath, 0)  # first page doubles as the cover
     image = Image.open(io.BytesIO(data))
+    # PNG can't encode CMYK; everything else Pillow decodes here saves fine as-is.
     if image.mode not in ("RGB", "RGBA", "L", "P"):
         image = image.convert("RGB")
-    image.thumbnail(COMIC_THUMB_SIZE)
+    image.thumbnail(COMIC_THUMB_SIZE)  # in place, preserves aspect ratio
     image.save(out_path, format="PNG")

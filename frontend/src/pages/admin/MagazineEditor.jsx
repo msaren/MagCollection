@@ -35,6 +35,10 @@ export default function AdminMagazineEditor() {
   async function saveEdit(id) {
     setError('')
     try {
+      // Empty string means "no owner override". Note this sends userID: null, but
+      // admin_update_magazine's exclude_none=True drops null fields before the SQL
+      // UPDATE runs, so clearing this field back to "(none)" currently has no effect
+      // once a userID has been set - the override can be changed but not removed.
       const payload = { ...editForm, userID: editForm.userID || null }
       await api.adminUpdateMagazine(id, payload)
       setEditingId(null)

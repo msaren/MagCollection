@@ -1,3 +1,6 @@
+/* Design tokens transcribed from DESIGN.md's light-mode palette. Dark mode doesn't
+   get its own token set here - index.css remaps a subset of these variables under
+   :root[data-theme='dark'] instead, so components only ever reference the names below. */
 :root {
   /* Colors */
   --color-primary: #cc785c;

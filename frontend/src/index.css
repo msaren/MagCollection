@@ -723,10 +723,12 @@ button {
 }
 
 /* ------------------------------------------------------------------------ */
-/* EPUB reader                                                               */
+/* EPUB / comic reader (shared by EpubReader.jsx and ComicReader.jsx)        */
 /* ------------------------------------------------------------------------ */
 
 .reader-shell {
+  /* Covers the whole viewport rather than rendering inside AppShell/app-content,
+     since the reader is meant to be a distraction-free full-screen view. */
   position: fixed;
   inset: 0;
   display: flex;
@@ -782,6 +784,8 @@ button {
   transform: translateX(-50%);
 }
 
+/* Invisible tap targets over the left/right edges of the page, revealed on hover;
+   keeps the reading view uncluttered while still being obvious once you look for them. */
 .reader-nav {
   position: absolute;
   top: 0;

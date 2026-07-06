@@ -9,6 +9,8 @@ export default function UISettings() {
 
   const isDark = user?.theme === 'dark'
 
+  // Persisted via the user record (see AuthContext.setTheme), not localStorage,
+  // so the choice follows the account across devices/browsers.
   async function handleToggle() {
     setError('')
     setSaving(true)

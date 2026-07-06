@@ -8,6 +8,8 @@ export default function Sidebar({ open, onClose }) {
 
   return (
     <>
+      {/* Mobile-only dimmed backdrop; index.css hides it above the tablet breakpoint
+          where the sidebar is always visible instead of toggled. */}
       {open && <div className="sidebar-scrim" onClick={onClose} />}
       <aside className={`sidebar${open ? ' sidebar-open' : ''}`}>
         <div className="sidebar-brand">

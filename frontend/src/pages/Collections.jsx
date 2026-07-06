@@ -26,6 +26,8 @@ export default function Collections() {
       <div className="grid grid-collections">
         {collections?.map((c) => (
           <Link to={`/collections/${encodeURIComponent(c.name)}`} key={c.name} className="collection-card">
+            {/* The API also returns c.icon (settable via the admin collections editor),
+                but there's no icon picker UI yet, so this always shows the initial letter. */}
             <div className="collection-icon">{c.name.charAt(0).toUpperCase()}</div>
             <div className="collection-name">{c.name}</div>
             <div className="collection-count">

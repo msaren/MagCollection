@@ -1,5 +1,7 @@
 import { api } from '../api/client'
 
+// Only used for PDFs (see CollectionView.handleOpen) - relies on the browser's own
+// built-in PDF viewer, which is why EPUB/comic archives use dedicated reader pages instead.
 export async function openMagazineFile(magazineId) {
   const blob = await api.fetchBlob(`/magazines/${magazineId}/file`)
   const url = URL.createObjectURL(blob)

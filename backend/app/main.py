@@ -30,7 +30,7 @@ app.add_middleware(
 def startup():
     db.init_db()
     users_store.ensure_seed_admin()
-    scanner.scan()
+    scanner.scan()  # sync collections/ into the DB on every boot, not just via the admin endpoint
 
 
 def public_user(user: dict) -> dict:
@@ -44,6 +44,7 @@ def public_user(user: dict) -> dict:
     }
 
 
+# Content-Type served for each supported file extension.
 MEDIA_TYPES = {
     ".pdf": "application/pdf",
     ".epub": "application/epub+zip",
@@ -51,6 +52,7 @@ MEDIA_TYPES = {
     ".cbr": "application/vnd.comicbook-rar",
     ".zip": "application/zip",
 }
+# Archive formats routed through the paged comics.py reader rather than served as one file.
 COMIC_EXTENSIONS = {".cbz", ".cbr", ".zip"}
 
 
@@ -71,6 +73,7 @@ def public_magazine(row) -> dict:
 
 
 def _mark_read(magazine_id: int) -> None:
+    """Stamp last_read with now(); called when a magazine is actually opened, not on thumbnail/listing requests."""
     with db.tx() as conn:
         conn.execute("UPDATE magazines SET last_read = ? WHERE id = ?", (time.time(), magazine_id))
 
@@ -147,8 +150,11 @@ def browse_collection(name: str, path: str = "", user: dict = Depends(auth.get_c
             continue
         dirpath = row["dirpath"] or ""
         if dirpath == path:
+            # Magazine lives directly in the requested folder.
             magazines.append(row)
         elif dirpath.startswith(prefix):
+            # Magazine is deeper in the tree; count it against its immediate child folder
+            # rather than listing it here, so nested subdirectories collapse to one entry.
             folder_name = dirpath[len(prefix):].split("/", 1)[0]
             folder_counts[folder_name] = folder_counts.get(folder_name, 0) + 1
 
@@ -199,6 +205,7 @@ def get_magazine_thumbnail(magazine_id: int, user: dict = Depends(auth.get_curre
 
 @app.get("/api/magazines/{magazine_id}/pages")
 def get_magazine_pages(magazine_id: int, user: dict = Depends(auth.get_current_user)):
+    """Return the page count for a comic archive; the frontend reader calls this once on open."""
     row = _get_magazine_or_404(magazine_id)
     if not auth.can_access(user, row["groupID"], row["userID"]):
         raise HTTPException(status_code=403, detail="No access to this magazine")
@@ -214,6 +221,7 @@ def get_magazine_pages(magazine_id: int, user: dict = Depends(auth.get_current_u
 
 @app.get("/api/magazines/{magazine_id}/pages/{page_index}")
 def get_magazine_page(magazine_id: int, page_index: int, user: dict = Depends(auth.get_current_user)):
+    """Stream a single page image out of a comic archive (0-based index into the natural page order)."""
     row = _get_magazine_or_404(magazine_id)
     if not auth.can_access(user, row["groupID"], row["userID"]):
         raise HTTPException(status_code=403, detail="No access to this magazine")
@@ -299,6 +307,8 @@ def admin_update_collection(name: str, body: CollectionUpdateRequest, user: dict
     row = conn.execute("SELECT * FROM collections WHERE name = ?", (name,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Collection not found")
+    # Column names come from the pydantic model's own fields, not client input, so
+    # interpolating them into the SQL is safe; only the values are parameterized.
     updates = body.model_dump(exclude_none=True)
     if updates:
         set_clause = ", ".join(f"{k} = ?" for k in updates)
@@ -322,6 +332,7 @@ def admin_list_magazines(user: dict = Depends(auth.require_admin)):
 @app.put("/api/admin/magazines/{magazine_id}")
 def admin_update_magazine(magazine_id: int, body: MagazineUpdateRequest, user: dict = Depends(auth.require_admin)):
     row = _get_magazine_or_404(magazine_id)
+    # Same reasoning as admin_update_collection: field names are schema-controlled, not client input.
     updates = body.model_dump(exclude_none=True)
     if updates:
         set_clause = ", ".join(f"{k} = ?" for k in updates)

@@ -41,10 +41,11 @@ def scan() -> dict:
                 relpath = str(entry.relative_to(config.COLLECTIONS_DIR))
                 seen_relpaths.add(relpath)
                 stat = entry.stat()
-                title = entry.stem
+                title = entry.stem  # filename without extension; naming isn't consistent across
+                # magazines (see CLAUDE.md), so this is just a starting point admins can rename
                 dirpath = str(entry.parent.relative_to(collection_dir))
                 if dirpath == ".":
-                    dirpath = ""
+                    dirpath = ""  # top level of the collection, not a subdirectory
 
                 existing = conn.execute(
                     "SELECT id FROM magazines WHERE relpath = ?", (relpath,)
@@ -74,6 +75,7 @@ def scan() -> dict:
                     )
                     updated += 1
 
+        # Anything in the DB that wasn't touched by the walk above was deleted/moved on disk.
         existing_rows = conn.execute("SELECT id, relpath FROM magazines").fetchall()
         for row in existing_rows:
             if row["relpath"] not in seen_relpaths:

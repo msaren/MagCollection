@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
+// A plain <img src="/api/..."> can't send the Authorization header, so this fetches
+// the image as a blob (with auth) and points <img> at an object URL instead.
 export default function AuthImage({ path, alt, className }) {
   const [src, setSrc] = useState(null)
   const [failed, setFailed] = useState(false)
@@ -23,6 +25,7 @@ export default function AuthImage({ path, alt, className }) {
       })
 
     return () => {
+      // Revoke on unmount/path-change so blob URLs don't leak memory as the user browses.
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }

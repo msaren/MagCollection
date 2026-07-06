@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import ePub from 'epubjs'
 import { api } from '../api/client'
 
+// Full-screen EPUB viewer using epub.js, since browsers have no native EPUB
+// renderer the way they do for PDF (which just opens in a plain browser tab).
 export default function EpubReader() {
   const { magazineId } = useParams()
   const navigate = useNavigate()
@@ -19,6 +21,7 @@ export default function EpubReader() {
   useEffect(() => {
     let cancelled = false
 
+    // Also stamps last_read server-side (see main.py get_magazine_file).
     api
       .fetchBlob(`/magazines/${magazineId}/file`)
       .then((blob) => blob.arrayBuffer())
@@ -33,6 +36,8 @@ export default function EpubReader() {
         })
         renditionRef.current = rendition
 
+        // location.start.percentage is epub.js's fraction through the whole book,
+        // independent of how many "pages" the current viewport happens to fit.
         rendition.on('relocated', (location) => {
           setProgress(location.start.percentage)
         })
@@ -49,6 +54,9 @@ export default function EpubReader() {
       })
 
     return () => {
+      // Guards the async chain above against setting state after unmount (e.g. the
+      // user hits Back before the file finishes downloading), and tears down epub.js's
+      // own DOM/iframe resources so they don't leak across magazineId changes.
       cancelled = true
       renditionRef.current?.destroy()
       bookRef.current?.destroy()

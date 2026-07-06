@@ -12,6 +12,8 @@ function encodePath(path) {
     .join('/')
 }
 
+// last_read is stored as a Unix epoch (seconds) or null if never opened.
+// Rendered in the viewer's local time zone, format DD-MM-YYYY HH:MM.
 function formatLastRead(epochSeconds) {
   if (!epochSeconds) return 'Never'
   const d = new Date(epochSeconds * 1000)
@@ -38,6 +40,8 @@ export default function CollectionView() {
       .catch((e) => setError(e.message))
   }, [name, path])
 
+  // Only PDFs use the browser's native tab-open path; EPUB and comic archives need
+  // an in-app reader since browsers can't render those formats on their own.
   async function handleOpen(magazine) {
     if (magazine.filetype === 'epub') {
       navigate(`/reader/${magazine.id}`, { state: { title: magazine.title } })
@@ -50,6 +54,8 @@ export default function CollectionView() {
     setOpeningId(magazine.id)
     try {
       await openMagazineFile(magazine.id)
+      // The reader routes remount this page on "back" and pick up the new last-read
+      // time automatically; opening a PDF stays on this page, so refetch explicitly.
       const fresh = await api.collectionBrowse(name, path)
       setData(fresh)
     } catch (e) {
@@ -77,6 +83,7 @@ export default function CollectionView() {
             {name}
           </Link>
         )}
+        {/* One breadcrumb link per path segment, each linking to that ancestor subdirectory. */}
         {segments.map((seg, i) => {
           const isLast = i === segments.length - 1
           const href = `/collections/${encodeURIComponent(name)}/${encodePath(segments.slice(0, i + 1).join('/'))}`

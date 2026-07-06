@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
 
+// Common page chrome (sidebar + topbar) shared by every authenticated page except
+// the full-screen EPUB/comic readers, which render outside this shell entirely.
 export default function AppShell({ title, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 

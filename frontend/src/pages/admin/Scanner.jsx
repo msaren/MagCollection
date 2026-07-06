@@ -19,6 +19,8 @@ export default function AdminScanner() {
 
   useEffect(load, [])
 
+  // The same scan the backend also runs automatically on startup; exposed here so
+  // admins can pick up filesystem changes (new issues copied in, etc.) without restarting.
   async function handleScan() {
     setScanning(true)
     setError('')

@@ -7,6 +7,9 @@ from passlib.hash import bcrypt
 
 from . import config
 
+# Users live in a flat JSON file (not the sqlite DB) so admin/user accounts survive
+# a `collections/` rescan untouched; the lock serializes read-modify-write cycles
+# across requests since sqlite3-style per-thread connections don't apply here.
 _lock = threading.Lock()
 
 
@@ -25,6 +28,8 @@ def _load() -> dict:
 
 
 def _save(data: dict) -> None:
+    # Write to a temp file and rename over the real one so a crash mid-write can't
+    # leave users.json truncated/corrupt.
     tmp_path = config.USERS_JSON_PATH.with_suffix(".json.tmp")
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -69,6 +74,11 @@ def create_user(username: str, password: str, email: str, group_id: str, role: s
 
 
 def update_user(user_id: str, **fields) -> dict:
+    """Partial update: any field left out (or None) keeps its current value.
+
+    A non-empty `password` is hashed and stored as passwordHash instead of being
+    written to the user record verbatim.
+    """
     with _lock:
         data = _load()
         for u in data["users"]:
