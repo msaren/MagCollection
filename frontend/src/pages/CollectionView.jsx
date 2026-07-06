@@ -12,6 +12,13 @@ function encodePath(path) {
     .join('/')
 }
 
+function formatLastRead(epochSeconds) {
+  if (!epochSeconds) return 'Never'
+  const d = new Date(epochSeconds * 1000)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function CollectionView() {
   const { name, '*': splat } = useParams()
   const navigate = useNavigate()
@@ -43,6 +50,8 @@ export default function CollectionView() {
     setOpeningId(magazine.id)
     try {
       await openMagazineFile(magazine.id)
+      const fresh = await api.collectionBrowse(name, path)
+      setData(fresh)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -119,6 +128,7 @@ export default function CollectionView() {
             >
               <AuthImage path={`/magazines/${m.id}/thumbnail`} alt={m.title} className="magazine-thumb" />
               <div className="magazine-title">{openingId === m.id ? 'Opening…' : m.title}</div>
+              <div className="magazine-last-read">Last read: {formatLastRead(m.lastRead)}</div>
             </button>
           ))}
         </div>

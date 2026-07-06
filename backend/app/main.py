@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -65,7 +66,13 @@ def public_magazine(row) -> dict:
         "size": row["size"],
         "mtime": row["mtime"],
         "filetype": Path(row["filename"]).suffix.lower().lstrip("."),
+        "lastRead": row["last_read"],
     }
+
+
+def _mark_read(magazine_id: int) -> None:
+    with db.tx() as conn:
+        conn.execute("UPDATE magazines SET last_read = ? WHERE id = ?", (time.time(), magazine_id))
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +181,7 @@ def get_magazine_file(magazine_id: int, user: dict = Depends(auth.get_current_us
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File missing on disk")
     media_type = MEDIA_TYPES.get(file_path.suffix.lower(), "application/octet-stream")
+    _mark_read(magazine_id)
     return FileResponse(file_path, media_type=media_type, filename=row["filename"])
 
 
@@ -200,6 +208,7 @@ def get_magazine_pages(magazine_id: int, user: dict = Depends(auth.get_current_u
         pages = comics.list_pages(row["relpath"])
     except Exception:
         raise HTTPException(status_code=500, detail="Could not read comic archive")
+    _mark_read(magazine_id)
     return {"pageCount": len(pages)}
 
 

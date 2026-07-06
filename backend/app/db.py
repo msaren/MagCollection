@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS magazines (
     size INTEGER,
     mtime REAL,
     thumbnail TEXT,
+    last_read REAL,
     FOREIGN KEY (collection) REFERENCES collections(name)
 );
 
@@ -52,6 +53,8 @@ def init_db() -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(magazines)")}
     if "dirpath" not in columns:
         conn.execute("ALTER TABLE magazines ADD COLUMN dirpath TEXT NOT NULL DEFAULT ''")
+    if "last_read" not in columns:
+        conn.execute("ALTER TABLE magazines ADD COLUMN last_read REAL")
     conn.executescript(INDEX_SCHEMA)
     conn.commit()
 
