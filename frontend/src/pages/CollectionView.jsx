@@ -36,6 +36,10 @@ export default function CollectionView() {
       navigate(`/reader/${magazine.id}`, { state: { title: magazine.title } })
       return
     }
+    if (['cbz', 'cbr', 'zip'].includes(magazine.filetype)) {
+      navigate(`/comic/${magazine.id}`, { state: { title: magazine.title } })
+      return
+    }
     setOpeningId(magazine.id)
     try {
       await openMagazineFile(magazine.id)

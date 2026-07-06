@@ -1,7 +1,8 @@
 # MagCollection
 
-MagCollector is a web app for browsing a magazine collection. Magazines live as PDF files under
-`collections/<collection name>/`; a Python backend indexes them into SQLite and serves a React frontend.
+MagCollector is a web app for browsing a magazine collection. Magazines live as PDF, EPUB, or comic
+archive (CBZ/CBR/ZIP) files under `collections/<collection name>/`; a Python backend indexes them
+into SQLite and serves a React frontend.
 
 ## Running locally
 
@@ -16,6 +17,10 @@ python3 -m venv venv          # first time only
 
 On first run this creates `backend/users.json` with a seed admin account (`admin` / `admin123` —
 change this immediately) and scans `collections/` into `backend/magcollector.db`.
+
+CBR (RAR-based comic archive) support shells out to `unrar` or `bsdtar`, whichever is found first
+on `PATH`. Install one of them (e.g. `brew install unrar` or `libarchive`/`bsdtar`, already present
+on macOS) if you have `.cbr` files in your collection.
 
 ### Frontend (React + Vite, port 5173)
 

@@ -50,6 +50,8 @@ export const api = {
       `/collections/${encodeURIComponent(name)}/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`
     ),
 
+  comicPages: (magazineId) => request(`/magazines/${magazineId}/pages`),
+
   async fetchBlob(path) {
     const token = getToken()
     const res = await fetch(`/api${path}`, {

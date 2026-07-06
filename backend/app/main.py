@@ -2,9 +2,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
-from . import auth, config, db, scanner, thumbnails, users_store
+from . import auth, comics, config, db, scanner, thumbnails, users_store
 from .schemas import (
     CollectionUpdateRequest,
     LoginRequest,
@@ -46,7 +46,11 @@ def public_user(user: dict) -> dict:
 MEDIA_TYPES = {
     ".pdf": "application/pdf",
     ".epub": "application/epub+zip",
+    ".cbz": "application/vnd.comicbook+zip",
+    ".cbr": "application/vnd.comicbook-rar",
+    ".zip": "application/zip",
 }
+COMIC_EXTENSIONS = {".cbz", ".cbr", ".zip"}
 
 
 def public_magazine(row) -> dict:
@@ -183,6 +187,36 @@ def get_magazine_thumbnail(magazine_id: int, user: dict = Depends(auth.get_curre
     except Exception:
         raise HTTPException(status_code=500, detail="Could not render thumbnail")
     return FileResponse(path, media_type="image/png")
+
+
+@app.get("/api/magazines/{magazine_id}/pages")
+def get_magazine_pages(magazine_id: int, user: dict = Depends(auth.get_current_user)):
+    row = _get_magazine_or_404(magazine_id)
+    if not auth.can_access(user, row["groupID"], row["userID"]):
+        raise HTTPException(status_code=403, detail="No access to this magazine")
+    if Path(row["filename"]).suffix.lower() not in COMIC_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not a comic archive")
+    try:
+        pages = comics.list_pages(row["relpath"])
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not read comic archive")
+    return {"pageCount": len(pages)}
+
+
+@app.get("/api/magazines/{magazine_id}/pages/{page_index}")
+def get_magazine_page(magazine_id: int, page_index: int, user: dict = Depends(auth.get_current_user)):
+    row = _get_magazine_or_404(magazine_id)
+    if not auth.can_access(user, row["groupID"], row["userID"]):
+        raise HTTPException(status_code=403, detail="No access to this magazine")
+    if Path(row["filename"]).suffix.lower() not in COMIC_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not a comic archive")
+    try:
+        data, media_type = comics.read_page(row["relpath"], page_index)
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Page not found")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not read comic archive")
+    return Response(content=data, media_type=media_type)
 
 
 # ---------------------------------------------------------------------------

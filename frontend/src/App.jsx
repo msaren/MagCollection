@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Collections from './pages/Collections'
 import CollectionView from './pages/CollectionView'
 import EpubReader from './pages/EpubReader'
+import ComicReader from './pages/ComicReader'
 import AdminUsers from './pages/admin/Users'
 import AdminScanner from './pages/admin/Scanner'
 import AdminMagazineEditor from './pages/admin/MagazineEditor'
@@ -21,6 +22,7 @@ export default function App() {
             <Route path="/" element={<Collections />} />
             <Route path="/collections/:name/*" element={<CollectionView />} />
             <Route path="/reader/:magazineId" element={<EpubReader />} />
+            <Route path="/comic/:magazineId" element={<ComicReader />} />
             <Route path="/settings/ui" element={<UISettings />} />
 
             <Route element={<RequireAdmin />}>

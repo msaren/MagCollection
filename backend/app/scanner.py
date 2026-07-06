@@ -3,7 +3,7 @@ import time
 
 from . import config, db
 
-SUPPORTED_EXTENSIONS = {".pdf", ".epub"}
+SUPPORTED_EXTENSIONS = {".pdf", ".epub", ".cbz", ".cbr", ".zip"}
 
 
 def scan() -> dict:
