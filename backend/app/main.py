@@ -288,6 +288,13 @@ def admin_scan(user: dict = Depends(auth.require_admin)):
     return scanner.scan()
 
 
+@app.post("/api/admin/rescan-covers")
+def admin_rescan_covers(user: dict = Depends(auth.require_admin)):
+    """Full resync: like /scan, but also drops collections whose directory is gone
+    and wipes + regenerates every cached thumbnail."""
+    return scanner.rescan_covers()
+
+
 @app.get("/api/admin/collections")
 def admin_list_collections(user: dict = Depends(auth.require_admin)):
     conn = db.get_conn()

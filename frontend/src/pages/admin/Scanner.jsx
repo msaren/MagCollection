@@ -6,6 +6,7 @@ export default function AdminScanner() {
   const [collections, setCollections] = useState(null)
   const [error, setError] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [rescanning, setRescanning] = useState(false)
   const [lastResult, setLastResult] = useState(null)
   const [editingName, setEditingName] = useState(null)
   const [groupValue, setGroupValue] = useState('')
@@ -35,6 +36,23 @@ export default function AdminScanner() {
     }
   }
 
+  async function handleRescanCovers() {
+    if (!window.confirm('This wipes and re-renders every thumbnail, and removes collections/files no longer on disk. It can take a while for large libraries. Continue?')) {
+      return
+    }
+    setRescanning(true)
+    setError('')
+    try {
+      const result = await api.adminRescanCovers()
+      setLastResult(result)
+      load()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setRescanning(false)
+    }
+  }
+
   function startEditGroup(c) {
     setEditingName(c.name)
     setGroupValue(c.groupID)
@@ -60,13 +78,26 @@ export default function AdminScanner() {
           Scan the <code>collections/</code> directory on disk and sync new, updated, or removed magazine files
           into the database. New collections default to the <span className="badge-pill">public</span> group.
         </p>
-        <button className="button-primary" onClick={handleScan} disabled={scanning}>
+        <button className="button-primary" onClick={handleScan} disabled={scanning || rescanning}>
           {scanning ? 'Scanning…' : 'Scan now'}
+        </button>{' '}
+        <button className="button-secondary" onClick={handleRescanCovers} disabled={scanning || rescanning}>
+          {rescanning ? 'Rescanning covers…' : 'Rescan covers'}
         </button>
+        <p className="muted">
+          "Rescan covers" also removes collections/files that are no longer on disk and regenerates
+          every thumbnail from scratch — use it after bulk-removing files or if covers look stale.
+        </p>
         {lastResult && (
           <div className="scan-result">
-            Added {lastResult.added}, updated {lastResult.updated}, removed {lastResult.removed} — {' '}
-            {lastResult.collections} collection(s) total.
+            Added {lastResult.added}, updated {lastResult.updated}, removed {lastResult.removed}
+            {typeof lastResult.removedCollections === 'number' && lastResult.removedCollections > 0 &&
+              `, removed ${lastResult.removedCollections} collection(s)`}
+            {typeof lastResult.thumbnailsRegenerated === 'number' &&
+              `, regenerated ${lastResult.thumbnailsRegenerated} thumbnail(s)`}
+            {typeof lastResult.thumbnailsFailed === 'number' && lastResult.thumbnailsFailed > 0 &&
+              ` (${lastResult.thumbnailsFailed} failed)`}
+            {' '}— {lastResult.collections} collection(s) total.
           </div>
         )}
       </section>

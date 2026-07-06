@@ -18,6 +18,12 @@ def thumbnail_path_for(relpath: str) -> Path:
     return config.THUMBNAIL_DIR / f"{safe_name}.png"
 
 
+def clear_cache() -> None:
+    """Delete every cached thumbnail so the next ensure_thumbnail call re-renders it."""
+    for cached in config.THUMBNAIL_DIR.glob("*.png"):
+        cached.unlink()
+
+
 def ensure_thumbnail(relpath: str) -> Path:
     """Render and cache the first page of the magazine at relpath as a PNG. Returns the cached path."""
     out_path = thumbnail_path_for(relpath)

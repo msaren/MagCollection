@@ -1,30 +1,36 @@
 import os
 import time
 
-from . import config, db
+from . import config, db, thumbnails
 
 SUPPORTED_EXTENSIONS = {".pdf", ".epub", ".cbz", ".cbr", ".zip"}
 
 
-def scan() -> dict:
+def scan(*, remove_orphan_collections: bool = False) -> dict:
     """Walk the collections/ directory tree and sync the magazines + collections tables.
 
     Adds new collections/magazines, updates size/mtime for existing ones, and
-    removes DB rows for files that no longer exist on disk.
+    removes DB rows for files that no longer exist on disk. When
+    remove_orphan_collections is set, collection rows whose directory is no
+    longer present under collections/ are deleted too (only safe once every
+    magazine row that pointed into that directory has already been removed).
     """
     added = 0
     updated = 0
     removed = 0
+    removed_collections = 0
     seen_relpaths: set[str] = set()
+    seen_collections: set[str] = set()
 
     with db.tx() as conn:
         if not config.COLLECTIONS_DIR.exists():
-            return {"added": 0, "updated": 0, "removed": 0, "collections": 0}
+            return {"added": 0, "updated": 0, "removed": 0, "removedCollections": 0, "collections": 0}
 
         for collection_dir in sorted(config.COLLECTIONS_DIR.iterdir()):
             if not collection_dir.is_dir():
                 continue
             collection_name = collection_dir.name
+            seen_collections.add(collection_name)
 
             conn.execute(
                 "INSERT INTO collections (name, groupID) VALUES (?, ?) "
@@ -82,6 +88,45 @@ def scan() -> dict:
                 conn.execute("DELETE FROM magazines WHERE id = ?", (row["id"],))
                 removed += 1
 
+        if remove_orphan_collections:
+            # Safe only because every magazine row under a removed directory was already
+            # deleted above, in this same transaction, so the FOREIGN KEY check won't trip.
+            collection_rows = conn.execute("SELECT name FROM collections").fetchall()
+            for row in collection_rows:
+                if row["name"] not in seen_collections:
+                    conn.execute("DELETE FROM collections WHERE name = ?", (row["name"],))
+                    removed_collections += 1
+
         collection_count = conn.execute("SELECT COUNT(*) AS c FROM collections").fetchone()["c"]
 
-    return {"added": added, "updated": updated, "removed": removed, "collections": collection_count}
+    return {
+        "added": added,
+        "updated": updated,
+        "removed": removed,
+        "removedCollections": removed_collections,
+        "collections": collection_count,
+    }
+
+
+def rescan_covers() -> dict:
+    """Full rescan: sync the DB (including dropping orphaned collections), then
+    wipe and regenerate the thumbnail cache for every magazine still present.
+    """
+    result = scan(remove_orphan_collections=True)
+
+    thumbnails.clear_cache()
+
+    conn = db.get_conn()
+    relpaths = [row["relpath"] for row in conn.execute("SELECT relpath FROM magazines").fetchall()]
+    thumbnails_regenerated = 0
+    thumbnails_failed = 0
+    for relpath in relpaths:
+        try:
+            thumbnails.ensure_thumbnail(relpath)
+            thumbnails_regenerated += 1
+        except Exception:
+            thumbnails_failed += 1
+
+    result["thumbnailsRegenerated"] = thumbnails_regenerated
+    result["thumbnailsFailed"] = thumbnails_failed
+    return result

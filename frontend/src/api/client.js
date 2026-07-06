@@ -73,6 +73,7 @@ export const api = {
   adminDeleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
 
   adminScan: () => request('/admin/scan', { method: 'POST' }),
+  adminRescanCovers: () => request('/admin/rescan-covers', { method: 'POST' }),
   adminListCollections: () => request('/admin/collections'),
   adminUpdateCollection: (name, fields) =>
     request(`/admin/collections/${encodeURIComponent(name)}`, { method: 'PUT', body: fields }),
