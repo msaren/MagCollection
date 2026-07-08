@@ -96,6 +96,23 @@ export default function AdminScanner() {
     }
   }
 
+  async function handleRescanCollectionCovers(name) {
+    if (!window.confirm(`Wipe and re-render every thumbnail in "${name}"? This can take a while for large collections.`)) {
+      return
+    }
+    setRescanning(true)
+    setProgress({ running: true, current: 0, total: 0, currentFile: null, collection: name })
+    setError('')
+    try {
+      await api.adminRescanCollectionCovers(name)
+      pollRescanStatus()
+    } catch (e) {
+      setError(e.message)
+      setRescanning(false)
+      setProgress(null)
+    }
+  }
+
   function startEditGroup(c) {
     setEditingName(c.name)
     setGroupValue(c.groupID)
@@ -141,7 +158,7 @@ export default function AdminScanner() {
             </div>
             <div className="scan-progress-label">
               {progress.total
-                ? `Regenerating thumbnails: ${progress.current} / ${progress.total}`
+                ? `Regenerating thumbnails${progress.collection ? ` for "${progress.collection}"` : ''}: ${progress.current} / ${progress.total}`
                 : 'Syncing collections…'}
               {progress.currentFile && <span className="scan-progress-file"> — {progress.currentFile}</span>}
             </div>
@@ -200,9 +217,18 @@ export default function AdminScanner() {
                         </button>
                       </>
                     ) : (
-                      <button className="button-text-link" onClick={() => startEditGroup(c)}>
-                        Edit
-                      </button>
+                      <>
+                        <button className="button-text-link" onClick={() => startEditGroup(c)}>
+                          Edit
+                        </button>{' '}
+                        <button
+                          className="button-text-link"
+                          onClick={() => handleRescanCollectionCovers(c.name)}
+                          disabled={scanning || rescanning}
+                        >
+                          {rescanning && progress?.collection === c.name ? 'Rescanning…' : 'Rescan covers'}
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>

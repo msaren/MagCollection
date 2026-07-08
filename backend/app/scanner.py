@@ -6,10 +6,20 @@ from . import config, db, thumbnails
 
 SUPPORTED_EXTENSIONS = {".pdf", ".epub", ".cbz", ".cbr", ".zip"}
 
-# Tracks the state of a rescan_covers() run so the admin UI can poll it for progress,
-# since regenerating every thumbnail can take a long time for large libraries.
+# Tracks the state of a rescan_covers()/rescan_collection_covers() run so the admin UI
+# can poll it for progress, since regenerating thumbnails can take a long time. "collection"
+# is None for a full-library rescan, or a name for a single-collection rescan; only one
+# rescan of either kind can run at a time.
 _progress_lock = threading.Lock()
-_progress = {"running": False, "current": 0, "total": 0, "currentFile": None, "result": None, "error": None}
+_progress = {
+    "running": False,
+    "current": 0,
+    "total": 0,
+    "currentFile": None,
+    "collection": None,
+    "result": None,
+    "error": None,
+}
 
 
 def rescan_covers_progress() -> dict:
@@ -119,19 +129,8 @@ def scan(*, remove_orphan_collections: bool = False) -> dict:
     }
 
 
-def rescan_covers() -> dict:
-    """Full rescan: sync the DB (including dropping orphaned collections), then
-    wipe and regenerate the thumbnail cache for every magazine still present.
-
-    Updates the module-level progress state as it goes so callers running this
-    on a background thread (see start_rescan_covers) can be polled for status.
-    """
-    result = scan(remove_orphan_collections=True)
-
-    thumbnails.clear_cache()
-
-    conn = db.get_conn()
-    relpaths = [row["relpath"] for row in conn.execute("SELECT relpath FROM magazines").fetchall()]
+def _regenerate_thumbnails(relpaths: list[str]) -> dict:
+    """Render (or re-render) the thumbnail for each relpath, tracking progress as it goes."""
     thumbnails_regenerated = 0
     thumbnails_failed = 0
     with _progress_lock:
@@ -147,24 +146,61 @@ def rescan_covers() -> dict:
             thumbnails_failed += 1
         with _progress_lock:
             _progress["current"] += 1
+    return {"thumbnailsRegenerated": thumbnails_regenerated, "thumbnailsFailed": thumbnails_failed}
 
-    result["thumbnailsRegenerated"] = thumbnails_regenerated
-    result["thumbnailsFailed"] = thumbnails_failed
+
+def rescan_covers() -> dict:
+    """Full rescan: sync the DB (including dropping orphaned collections), then
+    wipe and regenerate the thumbnail cache for every magazine still present.
+
+    Updates the module-level progress state as it goes so callers running this
+    on a background thread (see start_rescan_covers) can be polled for status.
+    """
+    result = scan(remove_orphan_collections=True)
+    thumbnails.clear_cache()
+    conn = db.get_conn()
+    relpaths = [row["relpath"] for row in conn.execute("SELECT relpath FROM magazines").fetchall()]
+    result.update(_regenerate_thumbnails(relpaths))
     return result
 
 
-def start_rescan_covers() -> bool:
-    """Run rescan_covers() on a background thread so the admin UI can poll progress
-    instead of blocking on one long request. Returns False if a rescan is already running.
+def rescan_collection_covers(collection_name: str) -> dict:
+    """Regenerate thumbnails for just one collection: re-syncs the DB, then wipes and
+    re-renders only that collection's cached covers, leaving everything else untouched.
+    """
+    scan()
+    conn = db.get_conn()
+    relpaths = [
+        row["relpath"]
+        for row in conn.execute(
+            "SELECT relpath FROM magazines WHERE collection = ?", (collection_name,)
+        ).fetchall()
+    ]
+    for relpath in relpaths:
+        path = thumbnails.thumbnail_path_for(relpath)
+        if path.exists():
+            path.unlink()
+
+    result = {"collection": collection_name}
+    result.update(_regenerate_thumbnails(relpaths))
+    return result
+
+
+def start_rescan_covers(collection_name: str | None = None) -> bool:
+    """Run a full or single-collection rescan on a background thread so the admin UI can
+    poll progress instead of blocking on one long request. Returns False if a rescan
+    (of either kind) is already running.
     """
     with _progress_lock:
         if _progress["running"]:
             return False
-        _progress.update(running=True, current=0, total=0, currentFile=None, result=None, error=None)
+        _progress.update(
+            running=True, current=0, total=0, currentFile=None, collection=collection_name, result=None, error=None
+        )
 
     def run():
         try:
-            result = rescan_covers()
+            result = rescan_collection_covers(collection_name) if collection_name else rescan_covers()
             with _progress_lock:
                 _progress["result"] = result
         except Exception as e:

@@ -303,6 +303,18 @@ def admin_rescan_covers_status(user: dict = Depends(auth.require_admin)):
     return scanner.rescan_covers_progress()
 
 
+@app.post("/api/admin/collections/{name}/rescan-covers")
+def admin_rescan_collection_covers(name: str, user: dict = Depends(auth.require_admin)):
+    """Like /admin/rescan-covers but scoped to one collection; shares the same
+    background thread + progress status as the full rescan."""
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM collections WHERE name = ?", (name,)).fetchone() is None:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    if not scanner.start_rescan_covers(collection_name=name):
+        raise HTTPException(status_code=409, detail="A rescan is already in progress")
+    return {"started": True}
+
+
 @app.get("/api/admin/collections")
 def admin_list_collections(user: dict = Depends(auth.require_admin)):
     conn = db.get_conn()
