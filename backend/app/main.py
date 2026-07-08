@@ -291,8 +291,16 @@ def admin_scan(user: dict = Depends(auth.require_admin)):
 @app.post("/api/admin/rescan-covers")
 def admin_rescan_covers(user: dict = Depends(auth.require_admin)):
     """Full resync: like /scan, but also drops collections whose directory is gone
-    and wipes + regenerates every cached thumbnail."""
-    return scanner.rescan_covers()
+    and wipes + regenerates every cached thumbnail. Runs on a background thread since
+    this can take a while; poll /api/admin/rescan-covers/status for progress."""
+    if not scanner.start_rescan_covers():
+        raise HTTPException(status_code=409, detail="A rescan is already in progress")
+    return {"started": True}
+
+
+@app.get("/api/admin/rescan-covers/status")
+def admin_rescan_covers_status(user: dict = Depends(auth.require_admin)):
+    return scanner.rescan_covers_progress()
 
 
 @app.get("/api/admin/collections")

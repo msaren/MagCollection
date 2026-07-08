@@ -1,9 +1,20 @@
 import os
+import threading
 import time
 
 from . import config, db, thumbnails
 
 SUPPORTED_EXTENSIONS = {".pdf", ".epub", ".cbz", ".cbr", ".zip"}
+
+# Tracks the state of a rescan_covers() run so the admin UI can poll it for progress,
+# since regenerating every thumbnail can take a long time for large libraries.
+_progress_lock = threading.Lock()
+_progress = {"running": False, "current": 0, "total": 0, "currentFile": None, "result": None, "error": None}
+
+
+def rescan_covers_progress() -> dict:
+    with _progress_lock:
+        return dict(_progress)
 
 
 def scan(*, remove_orphan_collections: bool = False) -> dict:
@@ -111,6 +122,9 @@ def scan(*, remove_orphan_collections: bool = False) -> dict:
 def rescan_covers() -> dict:
     """Full rescan: sync the DB (including dropping orphaned collections), then
     wipe and regenerate the thumbnail cache for every magazine still present.
+
+    Updates the module-level progress state as it goes so callers running this
+    on a background thread (see start_rescan_covers) can be polled for status.
     """
     result = scan(remove_orphan_collections=True)
 
@@ -120,13 +134,46 @@ def rescan_covers() -> dict:
     relpaths = [row["relpath"] for row in conn.execute("SELECT relpath FROM magazines").fetchall()]
     thumbnails_regenerated = 0
     thumbnails_failed = 0
+    with _progress_lock:
+        _progress["total"] = len(relpaths)
+        _progress["current"] = 0
     for relpath in relpaths:
+        with _progress_lock:
+            _progress["currentFile"] = relpath
         try:
             thumbnails.ensure_thumbnail(relpath)
             thumbnails_regenerated += 1
         except Exception:
             thumbnails_failed += 1
+        with _progress_lock:
+            _progress["current"] += 1
 
     result["thumbnailsRegenerated"] = thumbnails_regenerated
     result["thumbnailsFailed"] = thumbnails_failed
     return result
+
+
+def start_rescan_covers() -> bool:
+    """Run rescan_covers() on a background thread so the admin UI can poll progress
+    instead of blocking on one long request. Returns False if a rescan is already running.
+    """
+    with _progress_lock:
+        if _progress["running"]:
+            return False
+        _progress.update(running=True, current=0, total=0, currentFile=None, result=None, error=None)
+
+    def run():
+        try:
+            result = rescan_covers()
+            with _progress_lock:
+                _progress["result"] = result
+        except Exception as e:
+            with _progress_lock:
+                _progress["error"] = str(e)
+        finally:
+            with _progress_lock:
+                _progress["running"] = False
+                _progress["currentFile"] = None
+
+    threading.Thread(target=run, daemon=True).start()
+    return True

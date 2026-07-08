@@ -74,6 +74,7 @@ export const api = {
 
   adminScan: () => request('/admin/scan', { method: 'POST' }),
   adminRescanCovers: () => request('/admin/rescan-covers', { method: 'POST' }),
+  adminRescanCoversStatus: () => request('/admin/rescan-covers/status'),
   adminListCollections: () => request('/admin/collections'),
   adminUpdateCollection: (name, fields) =>
     request(`/admin/collections/${encodeURIComponent(name)}`, { method: 'PUT', body: fields }),

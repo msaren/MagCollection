@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AppShell from '../../components/AppShell'
 import { api } from '../../api/client'
 
@@ -7,9 +7,11 @@ export default function AdminScanner() {
   const [error, setError] = useState('')
   const [scanning, setScanning] = useState(false)
   const [rescanning, setRescanning] = useState(false)
+  const [progress, setProgress] = useState(null)
   const [lastResult, setLastResult] = useState(null)
   const [editingName, setEditingName] = useState(null)
   const [groupValue, setGroupValue] = useState('')
+  const pollRef = useRef(null)
 
   function load() {
     api
@@ -19,6 +21,47 @@ export default function AdminScanner() {
   }
 
   useEffect(load, [])
+
+  // Picks up a rescan already in progress (e.g. kicked off from another tab) so the
+  // progress indicator shows up on load instead of only after clicking the button here.
+  useEffect(() => {
+    api
+      .adminRescanCoversStatus()
+      .then((status) => {
+        if (status.running) {
+          setRescanning(true)
+          setProgress(status)
+          pollRescanStatus()
+        }
+      })
+      .catch(() => {})
+    return () => clearTimeout(pollRef.current)
+  }, [])
+
+  function pollRescanStatus() {
+    pollRef.current = setTimeout(async () => {
+      try {
+        const status = await api.adminRescanCoversStatus()
+        setProgress(status)
+        if (status.running) {
+          pollRescanStatus()
+          return
+        }
+        if (status.error) {
+          setError(status.error)
+        } else if (status.result) {
+          setLastResult(status.result)
+        }
+        setRescanning(false)
+        setProgress(null)
+        load()
+      } catch (e) {
+        setError(e.message)
+        setRescanning(false)
+        setProgress(null)
+      }
+    }, 500)
+  }
 
   // The same scan the backend also runs automatically on startup; exposed here so
   // admins can pick up filesystem changes (new issues copied in, etc.) without restarting.
@@ -41,15 +84,15 @@ export default function AdminScanner() {
       return
     }
     setRescanning(true)
+    setProgress({ running: true, current: 0, total: 0, currentFile: null })
     setError('')
     try {
-      const result = await api.adminRescanCovers()
-      setLastResult(result)
-      load()
+      await api.adminRescanCovers()
+      pollRescanStatus()
     } catch (e) {
       setError(e.message)
-    } finally {
       setRescanning(false)
+      setProgress(null)
     }
   }
 
@@ -88,6 +131,22 @@ export default function AdminScanner() {
           "Rescan covers" also removes collections/files that are no longer on disk and regenerates
           every thumbnail from scratch — use it after bulk-removing files or if covers look stale.
         </p>
+        {progress && (
+          <div className="scan-progress">
+            <div className="scan-progress-bar">
+              <div
+                className="scan-progress-bar-fill"
+                style={{ width: progress.total ? `${(100 * progress.current) / progress.total}%` : '2%' }}
+              />
+            </div>
+            <div className="scan-progress-label">
+              {progress.total
+                ? `Regenerating thumbnails: ${progress.current} / ${progress.total}`
+                : 'Syncing collections…'}
+              {progress.currentFile && <span className="scan-progress-file"> — {progress.currentFile}</span>}
+            </div>
+          </div>
+        )}
         {lastResult && (
           <div className="scan-result">
             Added {lastResult.added}, updated {lastResult.updated}, removed {lastResult.removed}
