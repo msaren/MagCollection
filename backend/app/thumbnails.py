@@ -1,7 +1,7 @@
 import io
 from pathlib import Path
 
-import fitz  # PyMuPDF
+import pymupdf
 from PIL import Image
 
 from . import comics, config
@@ -40,13 +40,13 @@ def ensure_thumbnail(relpath: str) -> Path:
 
 
 def _render_document_thumbnail(source_path: Path, out_path: Path) -> None:
-    doc = fitz.open(source_path)
+    doc = pymupdf.open(source_path)
     try:
         if doc.is_reflowable:
             # EPUB and similar formats have no fixed page size until laid out.
             doc.layout(width=800, height=1200, fontsize=11)
         page = doc.load_page(0)
-        matrix = fitz.Matrix(THUMBNAIL_ZOOM, THUMBNAIL_ZOOM)
+        matrix = pymupdf.Matrix(THUMBNAIL_ZOOM, THUMBNAIL_ZOOM)
         pix = page.get_pixmap(matrix=matrix)
         pix.save(out_path)
     finally:
