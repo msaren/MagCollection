@@ -36,10 +36,16 @@ export default function EpubReader() {
         })
         renditionRef.current = rendition
 
-        // location.start.percentage is epub.js's fraction through the whole book,
-        // independent of how many "pages" the current viewport happens to fit.
+        // location.start.percentage relies on book.locations, which epub.js builds
+        // by chunking extracted text and is never generated here - so it's always 0.
+        // It also comes up empty for image-only EPUBs (e.g. comics converted to EPUB)
+        // since there's no text to chunk. Spine index + in-chapter page fraction is
+        // synchronous, always available, and updates on every page turn.
         rendition.on('relocated', (location) => {
-          setProgress(location.start.percentage)
+          const spineLength = book.spine.length || 1
+          const { index, displayed } = location.start
+          const withinChapter = displayed.total > 1 ? (displayed.page - 1) / displayed.total : 0
+          setProgress((index + withinChapter) / spineLength)
         })
 
         return rendition.display().then(() => {
