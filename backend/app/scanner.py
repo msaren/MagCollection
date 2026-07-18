@@ -17,6 +17,7 @@ _progress = {
     "total": 0,
     "currentFile": None,
     "collection": None,
+    "path": None,
     "result": None,
     "error": None,
 }
@@ -27,7 +28,16 @@ def rescan_covers_progress() -> dict:
         return dict(_progress)
 
 
-def scan(*, remove_orphan_collections: bool = False) -> dict:
+def _safe_subdir(base, relative: str):
+    """Joins a `/`-separated subdirectory path onto `base`, rejecting anything
+    that could escape it (`..` segments). Returns None if `relative` is unsafe."""
+    parts = [p for p in relative.split("/") if p not in ("", ".")]
+    if any(p == ".." for p in parts):
+        return None
+    return base.joinpath(*parts) if parts else base
+
+
+def scan(*, remove_orphan_collections: bool = False, collection_name: str | None = None, dirpath: str | None = None) -> dict:
     """Walk the collections/ directory tree and sync the magazines + collections tables.
 
     Adds new collections/magazines, updates size/mtime for existing ones, and
@@ -35,6 +45,11 @@ def scan(*, remove_orphan_collections: bool = False) -> dict:
     remove_orphan_collections is set, collection rows whose directory is no
     longer present under collections/ are deleted too (only safe once every
     magazine row that pointed into that directory has already been removed).
+
+    Pass collection_name (and optionally dirpath, a subdirectory within it) to
+    scope the walk to just that directory: only files under it are added,
+    updated, or removed as missing; every other collection/file is left alone.
+    remove_orphan_collections requires the unscoped, whole-tree scan.
     """
     added = 0
     updated = 0
@@ -47,19 +62,35 @@ def scan(*, remove_orphan_collections: bool = False) -> dict:
         if not config.COLLECTIONS_DIR.exists():
             return {"added": 0, "updated": 0, "removed": 0, "removedCollections": 0, "collections": 0}
 
-        for collection_dir in sorted(config.COLLECTIONS_DIR.iterdir()):
+        if collection_name is not None:
+            collection_dirs = [config.COLLECTIONS_DIR / collection_name]
+        else:
+            collection_dirs = [d for d in sorted(config.COLLECTIONS_DIR.iterdir()) if d.is_dir()]
+
+        for collection_dir in collection_dirs:
             if not collection_dir.is_dir():
                 continue
-            collection_name = collection_dir.name
-            seen_collections.add(collection_name)
+            cname = collection_dir.name
+            seen_collections.add(cname)
 
             conn.execute(
                 "INSERT INTO collections (name, groupID) VALUES (?, ?) "
                 "ON CONFLICT(name) DO NOTHING",
-                (collection_name, config.PUBLIC_GROUP_ID),
+                (cname, config.PUBLIC_GROUP_ID),
             )
 
-            for entry in sorted(collection_dir.rglob("*")):
+            walk_root = collection_dir
+            if dirpath:
+                walk_root = _safe_subdir(collection_dir, dirpath)
+                if walk_root is None:
+                    continue
+
+            if not walk_root.is_dir():
+                # The scoped subdirectory is gone; any DB rows still pointing into it are
+                # caught as missing by the removal step below since nothing was seen for them.
+                continue
+
+            for entry in sorted(walk_root.rglob("*")):
                 if not entry.is_file():
                     continue
                 if entry.suffix.lower() not in SUPPORTED_EXTENSIONS:
@@ -70,9 +101,9 @@ def scan(*, remove_orphan_collections: bool = False) -> dict:
                 stat = entry.stat()
                 title = entry.stem  # filename without extension; naming isn't consistent across
                 # magazines (see CLAUDE.md), so this is just a starting point admins can rename
-                dirpath = str(entry.parent.relative_to(collection_dir))
-                if dirpath == ".":
-                    dirpath = ""  # top level of the collection, not a subdirectory
+                entry_dirpath = str(entry.parent.relative_to(collection_dir))
+                if entry_dirpath == ".":
+                    entry_dirpath = ""  # top level of the collection, not a subdirectory
 
                 existing = conn.execute(
                     "SELECT id FROM magazines WHERE relpath = ?", (relpath,)
@@ -84,10 +115,10 @@ def scan(*, remove_orphan_collections: bool = False) -> dict:
                         "(collection, filename, relpath, dirpath, title, groupID, size, mtime) "
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         (
-                            collection_name,
+                            cname,
                             entry.name,
                             relpath,
-                            dirpath,
+                            entry_dirpath,
                             title,
                             config.PUBLIC_GROUP_ID,
                             stat.st_size,
@@ -98,13 +129,26 @@ def scan(*, remove_orphan_collections: bool = False) -> dict:
                 else:
                     conn.execute(
                         "UPDATE magazines SET size = ?, mtime = ?, dirpath = ? WHERE relpath = ?",
-                        (stat.st_size, stat.st_mtime, dirpath, relpath),
+                        (stat.st_size, stat.st_mtime, entry_dirpath, relpath),
                     )
                     updated += 1
 
-        # Anything in the DB that wasn't touched by the walk above was deleted/moved on disk.
-        existing_rows = conn.execute("SELECT id, relpath FROM magazines").fetchall()
+        # Anything within scope that wasn't touched by the walk above was deleted/moved on
+        # disk. When scoped to a collection (and maybe a subdirectory within it), only rows
+        # in that scope are considered, so files elsewhere are never touched.
+        if collection_name is not None:
+            existing_rows = conn.execute(
+                "SELECT id, relpath, dirpath FROM magazines WHERE collection = ?", (collection_name,)
+            ).fetchall()
+        else:
+            existing_rows = conn.execute("SELECT id, relpath, dirpath FROM magazines").fetchall()
+
         for row in existing_rows:
+            if collection_name is not None and dirpath:
+                row_dirpath = row["dirpath"] or ""
+                in_scope = row_dirpath == dirpath or row_dirpath.startswith(f"{dirpath}/")
+                if not in_scope:
+                    continue
             if row["relpath"] not in seen_relpaths:
                 conn.execute("DELETE FROM magazines WHERE id = ?", (row["id"],))
                 removed += 1
@@ -164,43 +208,58 @@ def rescan_covers() -> dict:
     return result
 
 
-def rescan_collection_covers(collection_name: str) -> dict:
-    """Regenerate thumbnails for just one collection: re-syncs the DB, then wipes and
-    re-renders only that collection's cached covers, leaving everything else untouched.
+def rescan_collection_covers(collection_name: str, dirpath: str | None = None) -> dict:
+    """Regenerate thumbnails for one collection, optionally scoped to just a subdirectory
+    within it: re-syncs the DB for that scope only, then wipes and re-renders the covers
+    within it, leaving every other collection/directory untouched.
     """
-    scan()
+    scan(collection_name=collection_name, dirpath=dirpath)
     conn = db.get_conn()
-    relpaths = [
-        row["relpath"]
-        for row in conn.execute(
-            "SELECT relpath FROM magazines WHERE collection = ?", (collection_name,)
-        ).fetchall()
-    ]
+    rows = conn.execute(
+        "SELECT relpath, dirpath FROM magazines WHERE collection = ?", (collection_name,)
+    ).fetchall()
+    if dirpath:
+        rows = [
+            row
+            for row in rows
+            if (row["dirpath"] or "") == dirpath or (row["dirpath"] or "").startswith(f"{dirpath}/")
+        ]
+    relpaths = [row["relpath"] for row in rows]
+
     for relpath in relpaths:
         path = thumbnails.thumbnail_path_for(relpath)
         if path.exists():
             path.unlink()
 
-    result = {"collection": collection_name}
+    result = {"collection": collection_name, "path": dirpath}
     result.update(_regenerate_thumbnails(relpaths))
     return result
 
 
-def start_rescan_covers(collection_name: str | None = None) -> bool:
-    """Run a full or single-collection rescan on a background thread so the admin UI can
-    poll progress instead of blocking on one long request. Returns False if a rescan
-    (of either kind) is already running.
+def start_rescan_covers(collection_name: str | None = None, dirpath: str | None = None) -> bool:
+    """Run a full or single-collection (optionally subdirectory-scoped) rescan on a
+    background thread so the admin UI can poll progress instead of blocking on one long
+    request. Returns False if a rescan (of any kind) is already running.
     """
     with _progress_lock:
         if _progress["running"]:
             return False
         _progress.update(
-            running=True, current=0, total=0, currentFile=None, collection=collection_name, result=None, error=None
+            running=True,
+            current=0,
+            total=0,
+            currentFile=None,
+            collection=collection_name,
+            path=dirpath,
+            result=None,
+            error=None,
         )
 
     def run():
         try:
-            result = rescan_collection_covers(collection_name) if collection_name else rescan_covers()
+            result = (
+                rescan_collection_covers(collection_name, dirpath) if collection_name else rescan_covers()
+            )
             with _progress_lock:
                 _progress["result"] = result
         except Exception as e:

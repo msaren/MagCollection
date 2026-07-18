@@ -200,7 +200,11 @@ def get_magazine_thumbnail(magazine_id: int, user: dict = Depends(auth.get_curre
         path = thumbnails.ensure_thumbnail(row["relpath"])
     except Exception:
         raise HTTPException(status_code=500, detail="Could not render thumbnail")
-    return FileResponse(path, media_type="image/png")
+    # Without this, browsers apply heuristic freshness from the file's Last-Modified and
+    # can keep serving a thumbnail from their local cache indefinitely - even after a
+    # "Rescan covers" has wiped and re-rendered it - since they never even ask the server
+    # again. no-cache forces revalidation (via the ETag/Last-Modified below) on every load.
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/magazines/{magazine_id}/pages")
@@ -304,13 +308,15 @@ def admin_rescan_covers_status(user: dict = Depends(auth.require_admin)):
 
 
 @app.post("/api/admin/collections/{name}/rescan-covers")
-def admin_rescan_collection_covers(name: str, user: dict = Depends(auth.require_admin)):
-    """Like /admin/rescan-covers but scoped to one collection; shares the same
-    background thread + progress status as the full rescan."""
+def admin_rescan_collection_covers(name: str, path: str = "", user: dict = Depends(auth.require_admin)):
+    """Like /admin/rescan-covers but scoped to one collection, and further to a
+    subdirectory within it when `path` is given; shares the same background thread +
+    progress status as the full rescan."""
     conn = db.get_conn()
     if conn.execute("SELECT 1 FROM collections WHERE name = ?", (name,)).fetchone() is None:
         raise HTTPException(status_code=404, detail="Collection not found")
-    if not scanner.start_rescan_covers(collection_name=name):
+    dirpath = path.strip("/") or None
+    if not scanner.start_rescan_covers(collection_name=name, dirpath=dirpath):
         raise HTTPException(status_code=409, detail="A rescan is already in progress")
     return {"started": True}
 

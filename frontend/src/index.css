@@ -367,6 +367,19 @@ button {
   font-size: 14px;
 }
 
+.collection-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.collection-topbar .breadcrumbs-flex {
+  margin-bottom: 0;
+}
+
 .breadcrumb-link {
   color: var(--color-muted);
 }

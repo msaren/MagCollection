@@ -75,8 +75,11 @@ export const api = {
   adminScan: () => request('/admin/scan', { method: 'POST' }),
   adminRescanCovers: () => request('/admin/rescan-covers', { method: 'POST' }),
   adminRescanCoversStatus: () => request('/admin/rescan-covers/status'),
-  adminRescanCollectionCovers: (name) =>
-    request(`/admin/collections/${encodeURIComponent(name)}/rescan-covers`, { method: 'POST' }),
+  adminRescanCollectionCovers: (name, path = '') =>
+    request(
+      `/admin/collections/${encodeURIComponent(name)}/rescan-covers${path ? `?path=${encodeURIComponent(path)}` : ''}`,
+      { method: 'POST' }
+    ),
   adminListCollections: () => request('/admin/collections'),
   adminUpdateCollection: (name, fields) =>
     request(`/admin/collections/${encodeURIComponent(name)}`, { method: 'PUT', body: fields }),
